@@ -4,11 +4,21 @@ import 'package:flutter/material.dart';
 
 // ============================================================
 // ACTIVITY 3
-// Live Rainbow Performance Wave
+// Live Performance Wave
+//
+// Professional bar-based network performance waveform.
+//
+// Bottom of every bar stays fixed.
+// Only the top of each bar moves.
+//
+// Higher health:
+// - Taller bars
+// - Faster waveform
+// - Stronger glow
+// - Brighter appearance
 // ============================================================
 
-class LiveRainbowPerformanceWave
-    extends StatefulWidget {
+class LiveRainbowPerformanceWave extends StatefulWidget {
   final double strength;
 
   const LiveRainbowPerformanceWave({
@@ -50,8 +60,7 @@ class _LiveRainbowPerformanceWaveState
       animation: _controller,
       builder: (context, child) {
         return CustomPaint(
-          painter:
-              LiveRainbowPerformanceWavePainter(
+          painter: LiveRainbowPerformanceWavePainter(
             progress: _controller.value,
             strength: widget.strength,
           ),
@@ -63,7 +72,7 @@ class _LiveRainbowPerformanceWaveState
 
 // ============================================================
 // ACTIVITY 3
-// Live Rainbow Performance Wave Painter
+// Live Performance Wave Painter
 // ============================================================
 
 class LiveRainbowPerformanceWavePainter
@@ -86,225 +95,295 @@ class LiveRainbowPerformanceWavePainter
       return;
     }
 
+    // ----------------------------------------------------------
+    // NORMALIZED NETWORK HEALTH
+    //
+    // 0.0 = lowest
+    // 1.0 = highest
+    // ----------------------------------------------------------
+
     final double normalizedStrength =
         strength.clamp(0.0, 1.0).toDouble();
 
-    final double amplitudeFactor =
-        0.20 +
-            (normalizedStrength * 0.80);
-
-    final double amplitude =
-        size.height *
-            0.30 *
-            amplitudeFactor;
-
-    final double centerY =
-        size.height * 0.52;
-
-    final double opacity =
-        0.45 +
-            (normalizedStrength * 0.55);
-
-    final double animationSpeed =
-        0.65 +
-            (normalizedStrength * 0.55);
+    // ----------------------------------------------------------
+    // PROFESSIONAL NETWORK COLORS
+    //
+    // Green represents healthy network performance.
+    // Cyan is used as a subtle secondary tone.
+    // ----------------------------------------------------------
 
     final List<Color> colors = [
-      const Color(0xFFFF4D6D),
-      const Color(0xFFFF9F1C),
-      const Color(0xFFFFD166),
       const Color(0xFF45D483),
+      const Color(0xFF3ED9A1),
       const Color(0xFF2EC4B6),
-      const Color(0xFF4D96FF),
-      const Color(0xFF9B5DE5),
+      const Color(0xFF45D483),
+      const Color(0xFF5BE7B2),
     ];
 
     final List<double> stops = [
       0.0,
-      0.16,
-      0.32,
+      0.25,
       0.50,
-      0.67,
-      0.84,
+      0.75,
       1.0,
     ];
 
-    final Rect waveRect =
-        Rect.fromLTWH(
+    // ----------------------------------------------------------
+    // GRADIENT
+    // ----------------------------------------------------------
+
+    final Rect waveRect = Rect.fromLTWH(
       0,
       0,
       size.width,
       size.height,
     );
 
-    final Shader rainbowShader =
+    final Shader performanceShader =
         LinearGradient(
       colors: colors,
       stops: stops,
     ).createShader(waveRect);
 
-    final Path wavePath = Path();
+    // ----------------------------------------------------------
+    // BOTTOM ANCHOR
+    //
+    // The bottom never moves.
+    // Only the top of each bar changes.
+    // ----------------------------------------------------------
 
-    const int pointCount = 36;
+    final double bottomY =
+        size.height * 0.92;
+
+    // ----------------------------------------------------------
+    // BAR HEIGHT
+    //
+    // Higher health = taller bars.
+    // ----------------------------------------------------------
+
+    final double minimumHeight =
+        size.height * 0.08;
+
+    final double maximumHeight =
+        size.height *
+            (0.25 +
+                (normalizedStrength * 0.63));
+
+    // ----------------------------------------------------------
+    // WAVE SPEED
+    //
+    // Low health:
+    //     slower movement
+    //
+    // High health:
+    //     faster movement
+    // ----------------------------------------------------------
+
+    final double animationSpeed =
+        0.35 +
+            (normalizedStrength * 2.65);
+
+    // ----------------------------------------------------------
+    // GLOW
+    //
+    // Higher health = stronger glow.
+    // ----------------------------------------------------------
+
+    final double glowBlur =
+        1.5 +
+            (normalizedStrength * 6.5);
+
+    final double glowOpacity =
+        0.06 +
+            (normalizedStrength * 0.28);
+
+    // ----------------------------------------------------------
+    // PAINTS
+    // ----------------------------------------------------------
+
+    final Paint glowPaint = Paint()
+      ..shader = performanceShader
+      ..style = PaintingStyle.fill
+      ..maskFilter = MaskFilter.blur(
+        BlurStyle.normal,
+        glowBlur,
+      );
+
+    final Paint barPaint = Paint()
+      ..shader = performanceShader
+      ..style = PaintingStyle.fill;
+
+    // ----------------------------------------------------------
+    // BRIGHT HIGHLIGHT
+    //
+    // Becomes stronger as network health increases.
+    // ----------------------------------------------------------
+
+    final Paint highlightPaint = Paint()
+      ..color = Colors.white.withValues(
+        alpha:
+            0.02 +
+                (normalizedStrength * 0.16),
+      )
+      ..style = PaintingStyle.fill;
+
+    // ----------------------------------------------------------
+    // DRAW WAVEFORM BARS
+    // ----------------------------------------------------------
+
+    const int barCount = 18;
+
+    final double spacing =
+        size.width / barCount;
+
+    final double barWidth =
+        spacing * 0.42;
 
     for (int i = 0;
-        i < pointCount;
+        i < barCount;
         i++) {
-      final double t =
-          i / (pointCount - 1);
+      // --------------------------------------------------------
+      // BAR POSITION
+      // --------------------------------------------------------
 
-      final double x =
-          size.width * t;
+      final double normalizedIndex =
+          i / (barCount - 1);
+
+      // --------------------------------------------------------
+      // MOVING WAVE
+      //
+      // Health affects the speed of movement.
+      // --------------------------------------------------------
 
       final double phase =
-          progress *
-              math.pi *
-              2 *
-              animationSpeed;
+          (normalizedIndex *
+                  math.pi *
+                  2.4) -
+              (progress *
+                  math.pi *
+                  2 *
+                  animationSpeed);
+
+      // --------------------------------------------------------
+      // PRIMARY WAVE
+      // --------------------------------------------------------
 
       final double primaryWave =
-          math.sin(
-            (t * math.pi * 2.4) +
-                phase,
-          );
+          math.sin(phase);
+
+      // --------------------------------------------------------
+      // SECONDARY WAVE
+      //
+      // Adds natural variation between bars.
+      // --------------------------------------------------------
 
       final double secondaryWave =
           math.sin(
-            (t * math.pi * 5.0) -
-                (phase * 0.65),
-          ) *
-          0.20;
+                phase * 0.55 +
+                    1.2,
+              ) *
+              0.25;
 
-      final double y =
-          centerY +
-              ((primaryWave +
-                      secondaryWave) *
-                  amplitude);
+      // --------------------------------------------------------
+      // COMBINE WAVES
+      // --------------------------------------------------------
 
-      if (i == 0) {
-        wavePath.moveTo(
-          x,
-          y,
+      final double combinedWave =
+          ((primaryWave +
+                      secondaryWave) +
+                  1.0) /
+              2.0;
+
+      final double normalizedWave =
+          combinedWave.clamp(
+        0.0,
+        1.0,
+      );
+
+      // --------------------------------------------------------
+      // BAR HEIGHT
+      // --------------------------------------------------------
+
+      final double barHeight =
+          minimumHeight +
+              (normalizedWave *
+                  (maximumHeight -
+                      minimumHeight));
+
+      // --------------------------------------------------------
+      // X POSITION
+      // --------------------------------------------------------
+
+      final double x =
+          (i * spacing) +
+              ((spacing -
+                      barWidth) /
+                  2);
+
+      // --------------------------------------------------------
+      // TOP POSITION
+      //
+      // ONLY THE TOP MOVES.
+      // --------------------------------------------------------
+
+      final double topY =
+          bottomY -
+              barHeight;
+
+      // --------------------------------------------------------
+      // ROUNDED BAR
+      //
+      // Bottom remains fixed.
+      // Top follows the waveform.
+      // --------------------------------------------------------
+
+      final RRect barRect =
+          RRect.fromLTRBAndCorners(
+        x,
+        topY,
+        x + barWidth,
+        bottomY,
+        topLeft: Radius.circular(
+          barWidth / 2,
+        ),
+        topRight: Radius.circular(
+          barWidth / 2,
+        ),
+      );
+
+      // --------------------------------------------------------
+      // GLOW
+      // --------------------------------------------------------
+
+      if (glowOpacity > 0.08) {
+        canvas.drawRRect(
+          barRect,
+          glowPaint,
         );
-      } else {
-        wavePath.lineTo(
-          x,
-          y,
+      }
+
+      // --------------------------------------------------------
+      // MAIN PERFORMANCE BAR
+      // --------------------------------------------------------
+
+      canvas.drawRRect(
+        barRect,
+        barPaint,
+      );
+
+      // --------------------------------------------------------
+      // BRIGHT HIGHLIGHT
+      //
+      // Higher health produces a more visible highlight.
+      // --------------------------------------------------------
+
+      if (normalizedStrength > 0.35) {
+        canvas.drawRRect(
+          barRect,
+          highlightPaint,
         );
       }
     }
-
-    final Paint glowPaint =
-        Paint()
-          ..style =
-              PaintingStyle.stroke
-          ..strokeWidth = 8.0
-          ..strokeCap =
-              StrokeCap.round
-          ..strokeJoin =
-              StrokeJoin.round
-          ..shader = rainbowShader
-          ..maskFilter =
-              const MaskFilter.blur(
-            BlurStyle.normal,
-            3.5,
-          )
-          ..color = Colors.white.withValues(
-            alpha:
-                0.10 * opacity,
-          );
-
-    canvas.drawPath(
-      wavePath,
-      glowPaint,
-    );
-
-    final Paint wavePaint =
-        Paint()
-          ..style =
-              PaintingStyle.stroke
-          ..strokeWidth = 3.6
-          ..strokeCap =
-              StrokeCap.round
-          ..strokeJoin =
-              StrokeJoin.round
-          ..shader = rainbowShader;
-
-    canvas.drawPath(
-      wavePath,
-      wavePaint,
-    );
-
-    final double dotT =
-        ((progress *
-                animationSpeed) %
-            1.0);
-
-    final double dotPhase =
-        progress *
-            math.pi *
-            2 *
-            animationSpeed;
-
-    final double dotPrimary =
-        math.sin(
-          (dotT * math.pi * 2.4) +
-              dotPhase,
-        );
-
-    final double dotSecondary =
-        math.sin(
-              (dotT * math.pi * 5.0) -
-                  (dotPhase * 0.65),
-            ) *
-            0.20;
-
-    final double dotY =
-        centerY +
-            ((dotPrimary +
-                    dotSecondary) *
-                amplitude);
-
-    final double dotX =
-        size.width * dotT;
-
-    final Offset dotPosition =
-        Offset(
-      dotX,
-      dotY,
-    );
-
-    final Paint dotGlow =
-        Paint()
-          ..style =
-              PaintingStyle.fill
-          ..color = Colors.white.withValues(
-            alpha:
-                0.18 * opacity,
-          )
-          ..maskFilter =
-              const MaskFilter.blur(
-            BlurStyle.normal,
-            4,
-          );
-
-    canvas.drawCircle(
-      dotPosition,
-      6,
-      dotGlow,
-    );
-
-    final Paint dot =
-        Paint()
-          ..style =
-              PaintingStyle.fill
-          ..shader = rainbowShader;
-
-    canvas.drawCircle(
-      dotPosition,
-      3.0,
-      dot,
-    );
   }
 
   @override

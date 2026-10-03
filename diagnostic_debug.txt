@@ -3451,7 +3451,6 @@ class NetworkDataSource {
   double _lastUploadPing = 0;
 
   // Current download progress.
-  double _downloadCurrentProgress = 0.20;
 
   // ------------------------------------------------------------
   // Live monitoring state
@@ -4320,3 +4319,8 @@ Future<void> startLiveMonitoring() async {
     return NetworkHealth.poor;
   }
 }
+
+
+https://quezoncity.gov.ph/qcitizen-guides/how-to-get-a-health-certificate/
+https://makati.healthcert.ph/employee/login
+https://prosperidad.gov.ph/wp-content/uploads/2025/11/CC-2025-3rd-edition.pdf

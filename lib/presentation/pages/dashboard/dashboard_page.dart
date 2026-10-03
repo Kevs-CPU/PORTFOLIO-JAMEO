@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../state/app_state.dart';
 import '../../widgets/activity_card.dart';
-import '../../widgets/network_adaptive/adaptive_network_content.dart';
+import '../activity_four/local_mesh_chat/local_mesh_chat_page.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -41,9 +41,10 @@ class DashboardPage extends StatelessWidget {
 
     final String? imagePath = appState.profileImagePath;
 
-    final String userInitial = appState.userName.isNotEmpty
-        ? appState.userName[0].toUpperCase()
-        : '?';
+    final String userInitial =
+        appState.userName.isNotEmpty
+            ? appState.userName[0].toUpperCase()
+            : '?';
 
     return Scaffold(
       appBar: AppBar(
@@ -62,7 +63,8 @@ class DashboardPage extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
             children: [
               // ============================================================
               // Welcome Section
@@ -76,18 +78,21 @@ class DashboardPage extends StatelessWidget {
                     },
                     child: CircleAvatar(
                       radius: 28,
-                      backgroundColor: theme.colorScheme.primary,
-                      backgroundImage: imagePath != null
-                          ? FileImage(
-                              File(imagePath),
-                            )
-                          : null,
+                      backgroundColor:
+                          theme.colorScheme.primary,
+                      backgroundImage:
+                          imagePath != null
+                              ? FileImage(
+                                  File(imagePath),
+                                )
+                              : null,
                       child: imagePath == null
                           ? Text(
                               userInitial,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                                fontWeight:
+                                    FontWeight.bold,
                                 fontSize: 20,
                               ),
                             )
@@ -138,21 +143,15 @@ class DashboardPage extends StatelessWidget {
 
               Text(
                 'Activities',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: theme
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
 
               const SizedBox(height: 14),
-
-              // ============================================================
-              // ADAPTIVE NETWORK CONTENT
-              // Activity 3 network health controls
-              // ============================================================
-
-              const AdaptiveNetworkContent(),
-
-              const SizedBox(height: 16),
 
               // ============================================================
               // Activities List
@@ -170,7 +169,8 @@ class DashboardPage extends StatelessWidget {
 
                     ActivityCard(
                       title: 'Activity One',
-                      subtitle: 'Local counter demo',
+                      subtitle:
+                          'Local counter demo',
                       icon: Icons.looks_one,
                       onTap: () {
                         Navigator.pushNamed(
@@ -190,7 +190,7 @@ class DashboardPage extends StatelessWidget {
                     ActivityCard(
                       title: 'Activity Two',
                       subtitle:
-                          'Local input & network monitor',
+                          'Active Network Monitor & Handover Handling',
                       icon: Icons.looks_two,
                       onTap: () {
                         Navigator.pushNamed(
@@ -210,12 +210,35 @@ class DashboardPage extends StatelessWidget {
                     ActivityCard(
                       title: 'Activity Three',
                       subtitle:
-                          'Network Diagnostic Dashboard',
+                          'Dynamic Performance Throttle App',
                       icon: Icons.speed,
                       onTap: () {
                         Navigator.pushNamed(
                           context,
                           AppRoutes.networkDiagnostic,
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // ======================================================
+                    // ACTIVITY 4
+                    // Local Mesh Chat
+                    // ======================================================
+
+                    ActivityCard(
+                      title: 'Activity Four',
+                      subtitle:
+                          'Serverless Local Chat App',
+                      icon: Icons.hub_rounded,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const LocalMeshChatPage(),
+                          ),
                         );
                       },
                     ),

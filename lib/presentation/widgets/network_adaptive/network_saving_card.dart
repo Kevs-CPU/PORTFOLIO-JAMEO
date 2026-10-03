@@ -30,6 +30,17 @@ class _NetworkSavingCardState
   double _currentStrength = 0.0;
   double _targetStrength = 0.0;
 
+  // ----------------------------------------------------------
+  // Tachometer update timing
+  //
+  // The actual network measurements remain unchanged.
+  // The visual target is refreshed once every second.
+  // ----------------------------------------------------------
+  Duration? _lastTargetUpdate;
+
+  static const Duration _targetUpdateInterval =
+      Duration(seconds: 1);
+
   @override
   void initState() {
     super.initState();
@@ -52,6 +63,22 @@ class _NetworkSavingCardState
       return;
     }
 
+    // --------------------------------------------------------
+    // Update the target only once every second.
+    // --------------------------------------------------------
+    if (_lastTargetUpdate == null ||
+        elapsed - _lastTargetUpdate! >=
+            _targetUpdateInterval) {
+      _targetStrength = safeStrength(
+        widget.provider.livePerformanceStrength,
+      );
+
+      _lastTargetUpdate = elapsed;
+    }
+
+    // --------------------------------------------------------
+    // Smoothly animate the needle toward the target.
+    // --------------------------------------------------------
     final double deltaSeconds;
 
     if (_lastElapsed == null) {
@@ -68,10 +95,18 @@ class _NetworkSavingCardState
         _targetStrength - _currentStrength;
 
     if (difference.abs() < 0.0001) {
-      _currentStrength = _targetStrength;
+      if (_currentStrength != _targetStrength) {
+        setState(() {
+          _currentStrength = _targetStrength;
+        });
+      }
+
       return;
     }
 
+    // --------------------------------------------------------
+    // Smooth response of the tachometer needle.
+    // --------------------------------------------------------
     const double response = 8.0;
 
     final double alpha =
@@ -85,7 +120,8 @@ class _NetworkSavingCardState
             (difference * alpha);
 
     setState(() {
-      _currentStrength = safeStrength(nextStrength);
+      _currentStrength =
+          safeStrength(nextStrength);
     });
   }
 
@@ -99,21 +135,33 @@ class _NetworkSavingCardState
       widget.provider.livePerformanceStrength,
     );
 
-    _targetStrength = newTarget;
-
+    // --------------------------------------------------------
+    // Keep the target synchronized with the latest provider
+    // value. The ticker controls when the visual target moves.
+    // --------------------------------------------------------
     if (!widget.provider.isMonitoring) {
+      _targetStrength = newTarget;
+
       if (_ticker.isActive) {
         _ticker.stop();
       }
 
       _lastElapsed = null;
+      _lastTargetUpdate = null;
+
       return;
     }
 
+    // --------------------------------------------------------
+    // Monitoring has just started.
+    // --------------------------------------------------------
     if (!oldWidget.provider.isMonitoring &&
         widget.provider.isMonitoring) {
       _currentStrength = newTarget;
+      _targetStrength = newTarget;
+
       _lastElapsed = null;
+      _lastTargetUpdate = null;
 
       if (!_ticker.isActive) {
         _ticker.start();
@@ -123,8 +171,12 @@ class _NetworkSavingCardState
       return;
     }
 
+    // --------------------------------------------------------
+    // Make sure the ticker is running while monitoring.
+    // --------------------------------------------------------
     if (!_ticker.isActive) {
       _lastElapsed = null;
+      _lastTargetUpdate = null;
       _ticker.start();
     }
   }
@@ -144,162 +196,159 @@ class _NetworkSavingCardState
     final Color performance =
         performanceColor(actualStrength);
 
-    final String currentHealth =
-        healthLabel(widget.provider.health);
-
-    final Color currentHealthColor =
-        healthColor(
-      widget.provider.health,
-      colorScheme,
-    );
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        vertical: 4,
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 72,
-            height: 48,
-            child: NetworkSavingTachometer(
-              strength: _currentStrength,
-              color: performance,
-            ),
+    return Row(
+      children: [
+        // --------------------------------------------------
+        // Network performance tachometer
+        // --------------------------------------------------
+        SizedBox(
+          width: 72,
+          height: 48,
+          child: NetworkSavingTachometer(
+            strength: _currentStrength,
+            color: performance,
           ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Network-Saving Mode',
-                        maxLines: 1,
-                        overflow:
-                            TextOverflow.ellipsis,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
-                            ?.copyWith(
-                              fontSize: 12,
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                      ),
-                    ),
-                    if (widget.provider.isMonitoring)
-                      Container(
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal: 5,
-                          vertical: 2,
-                        ),
-                        decoration:
-                            BoxDecoration(
-                          color: performance
-                              .withValues(
-                            alpha: 0.10,
+        ),
+
+        const SizedBox(width: 9),
+
+        // --------------------------------------------------
+        // Network-Saving Mode content
+        // --------------------------------------------------
+        Expanded(
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // --------------------------------------------------
+              // Network-Saving Mode header
+              // --------------------------------------------------
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Network-Saving Mode',
+                      maxLines: 1,
+                      overflow:
+                          TextOverflow.ellipsis,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(
+                            fontSize: 12,
+                            fontWeight:
+                                FontWeight.bold,
                           ),
-                          borderRadius:
-                              BorderRadius.circular(
-                            5,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize:
-                              MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.circle,
-                              size: 4,
-                              color: performance,
-                            ),
-                            const SizedBox(
-                              width: 3,
-                            ),
-                            Text(
-                              'LIVE',
-                              style: TextStyle(
-                                color:
-                                    performance,
-                                fontSize: 6,
-                                fontWeight:
-                                    FontWeight.w800,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Lightweight content is active.',
-                  maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(
-                        fontSize: 9,
-                      ),
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    Text(
-                      '$percentage%',
-                      style: TextStyle(
-                        color: performance,
-                        fontSize: 13,
-                        fontWeight:
-                            FontWeight.w800,
-                      ),
                     ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        'Network performance',
-                        maxLines: 1,
-                        overflow:
-                            TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colorScheme
-                              .onSurface
-                              .withValues(
-                            alpha: 0.48,
-                          ),
-                          fontSize: 8,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  currentHealth,
-                  style: TextStyle(
-                    color: currentHealthColor,
-                    fontSize: 7,
-                    fontWeight:
-                        FontWeight.w800,
-                    letterSpacing: 0.4,
                   ),
-                ),
-              ],
-            ),
+
+                  // --------------------------------------------------
+                  // LIVE indicator
+                  // --------------------------------------------------
+                  if (widget.provider.isMonitoring)
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            performance.withValues(
+                          alpha: 0.10,
+                        ),
+                        borderRadius:
+                            BorderRadius.circular(5),
+                      ),
+                      child: Row(
+                        mainAxisSize:
+                            MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.circle,
+                            size: 4,
+                            color: performance,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: performance,
+                              fontSize: 6,
+                              fontWeight:
+                                  FontWeight.w800,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+
+              const SizedBox(height: 1),
+
+              // --------------------------------------------------
+              // Network-Saving Mode status
+              // --------------------------------------------------
+              Text(
+                'Lightweight content is active.',
+                maxLines: 1,
+                overflow:
+                    TextOverflow.ellipsis,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(
+                      fontSize: 9,
+                      fontWeight:
+                          FontWeight.w700,
+                    ),
+              ),
+
+              const SizedBox(height: 1),
+
+              // --------------------------------------------------
+              // Network performance percentage
+              // --------------------------------------------------
+              Row(
+                children: [
+                  Text(
+                    '$percentage%',
+                    style: TextStyle(
+                      color: performance,
+                      fontSize: 13,
+                      fontWeight:
+                          FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Network performance',
+                      maxLines: 1,
+                      overflow:
+                          TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colorScheme
+                            .onSurface
+                            .withValues(
+                          alpha: 0.48,
+                        ),
+                        fontSize: 8,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

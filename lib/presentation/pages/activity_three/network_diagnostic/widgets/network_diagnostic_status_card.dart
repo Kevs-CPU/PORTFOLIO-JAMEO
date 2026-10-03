@@ -1,15 +1,24 @@
 import 'package:flutter/material.dart';
 
 import '../../../../providers/network_diagnostic_provider.dart';
+import '../../../../widgets/network_adaptive/network_saving_card.dart';
 import 'network_diagnostic_helpers.dart';
 
 // ============================================================
 // ACTIVITY 3
 // Network Diagnostic Status Card
+//
+// IMPORTANT:
+// The outer card keeps the ORIGINAL Activity 3 size:
+// - Height: 72
+// - Horizontal padding: 14
+// - Same border radius
+//
+// When monitoring is active, NetworkSavingCard is displayed
+// INSIDE the same fixed-size card.
 // ============================================================
 
-class NetworkDiagnosticStatusCard
-    extends StatelessWidget {
+class NetworkDiagnosticStatusCard extends StatelessWidget {
   final NetworkDiagnosticProvider provider;
 
   const NetworkDiagnosticStatusCard({
@@ -17,8 +26,7 @@ class NetworkDiagnosticStatusCard
     required this.provider,
   });
 
-  static const Color _success =
-      Color(0xFF45D483);
+  static const Color _success = Color(0xFF45D483);
 
   @override
   Widget build(BuildContext context) {
@@ -37,38 +45,77 @@ class NetworkDiagnosticStatusCard
     final bool completed =
         provider.result != null;
 
-    final Color color = running
-        ? colorScheme.primary
-        : monitoring
-            ? _success
+    final bool offline =
+        provider.isOffline;
+
+    // ==========================================================
+    // LIVE MONITORING
+    //
+    // IMPORTANT:
+    // Keep EXACTLY the same card height as the original card.
+    // ==========================================================
+
+   if (monitoring && !offline) {
+      return Container(
+        width: double.infinity,
+        height: 72,
+        padding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 4,
+        ),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius:
+              BorderRadius.circular(14),
+          border: Border.all(
+            color: _success.withValues(
+              alpha: 0.30,
+            ),
+          ),
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: NetworkSavingCard(
+          provider: provider,
+        ),
+      );
+    }
+
+    // ==========================================================
+    // NORMAL STATUS CARD
+    // ==========================================================
+
+    final Color color = offline
+        ? colorScheme.error
+        : running
+            ? colorScheme.primary
             : completed
                 ? _success
-                : colorScheme.onSurface
-                    .withValues(
+                : colorScheme.onSurface.withValues(
                     alpha: 0.60,
                   );
 
-    final String title = running
-        ? 'Diagnostic Running'
-        : monitoring
-            ? 'Live Monitoring Active'
+    final String title = offline
+        ? 'Offline — Monitoring Paused'
+        : running
+            ? 'Diagnostic Running'
             : completed
                 ? 'Diagnostic Complete'
                 : 'Diagnostic Ready';
 
-    final String description = running
-        ? NetworkDiagnosticHelpers
-            .statusDescription(provider)
-        : monitoring
-            ? 'Continuously measuring network performance'
+    final String description = offline
+        ? 'Network unavailable. Last valid measurements are retained.'
+        : running
+            ? NetworkDiagnosticHelpers.statusDescription(
+                provider,
+              )
             : completed
                 ? 'Latest network test is available'
                 : 'Ready to measure connection performance';
 
     return Container(
+      width: double.infinity,
       height: 72,
-      padding:
-          const EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: 14,
       ),
       decoration: BoxDecoration(
@@ -76,8 +123,8 @@ class NetworkDiagnosticStatusCard
         borderRadius:
             BorderRadius.circular(14),
         border: Border.all(
-          color: monitoring
-              ? _success.withValues(
+          color: offline
+              ? colorScheme.error.withValues(
                   alpha: 0.30,
                 )
               : completed
@@ -89,22 +136,24 @@ class NetworkDiagnosticStatusCard
       ),
       child: Row(
         children: [
+          // ====================================================
+          // STATUS ICON
+          // ====================================================
+
           Container(
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color:
-                  color.withValues(
+              color: color.withValues(
                 alpha: 0.10,
               ),
               shape: BoxShape.circle,
             ),
             child: Icon(
-              running
-                  ? Icons.sync_rounded
-                  : monitoring
-                      ? Icons
-                          .monitor_heart_rounded
+              offline
+                  ? Icons.cloud_off_rounded
+                  : running
+                      ? Icons.sync_rounded
                       : completed
                           ? Icons
                               .check_circle_outline_rounded
@@ -114,7 +163,13 @@ class NetworkDiagnosticStatusCard
               size: 22,
             ),
           ),
+
           const SizedBox(width: 11),
+
+          // ====================================================
+          // STATUS TEXT
+          // ====================================================
+
           Expanded(
             child: Column(
               mainAxisAlignment:
@@ -124,6 +179,9 @@ class NetworkDiagnosticStatusCard
               children: [
                 Text(
                   title,
+                  maxLines: 1,
+                  overflow:
+                      TextOverflow.ellipsis,
                   style: TextStyle(
                     color: color,
                     fontSize: 13,
@@ -149,15 +207,22 @@ class NetworkDiagnosticStatusCard
               ],
             ),
           ),
-          if (running)
+
+          // ====================================================
+          // RUNNING STAGE
+          // ====================================================
+
+          if (running && !offline)
             Container(
               padding:
                   const EdgeInsets.symmetric(
                 horizontal: 9,
                 vertical: 5,
               ),
-              decoration: BoxDecoration(
-                color: colorScheme.primary
+              decoration:
+                  BoxDecoration(
+                color: colorScheme
+                    .primary
                     .withValues(
                   alpha: 0.10,
                 ),
@@ -178,31 +243,12 @@ class NetworkDiagnosticStatusCard
                 ),
               ),
             ),
-          if (monitoring)
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(
-                horizontal: 9,
-                vertical: 5,
-              ),
-              decoration: BoxDecoration(
-                color: _success.withValues(
-                  alpha: 0.12,
-                ),
-                borderRadius:
-                    BorderRadius.circular(20),
-              ),
-              child: const Text(
-                'LIVE',
-                style: TextStyle(
-                  color: _success,
-                  fontSize: 8,
-                  fontWeight:
-                      FontWeight.w700,
-                ),
-              ),
-            ),
-          if (completed && !monitoring)
+
+          // ====================================================
+          // COMPLETED
+          // ====================================================
+
+          if (completed)
             const Icon(
               Icons.check_circle_rounded,
               color: _success,

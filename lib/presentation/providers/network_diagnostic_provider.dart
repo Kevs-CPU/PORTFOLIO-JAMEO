@@ -21,10 +21,9 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
   NetworkDiagnosticResult? _result;
 
   bool _isRunning = false;
-
   bool _isMonitoring = false;
-
   bool _isRestoring = false;
+  bool _isOffline = false;
 
   String? _errorMessage;
 
@@ -33,19 +32,13 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
   double _progress = 0.0;
 
   double? _currentValue;
-
   double? _secondaryValue;
 
   double? _idlePingMs;
-
   double? _downloadMbps;
-
   double? _downloadPingMs;
-
   double? _uploadMbps;
-
   double? _uploadPingMs;
-
   double? _packetLossPercent;
 
   NetworkHealth? _health;
@@ -60,7 +53,8 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
   // 0.5 = average
   // 1.0 = very strong
   //
-  // Calculated from actual network measurements.
+  // This value is recalculated from the latest actual
+  // network measurements received from the DataSource.
   // ============================================================
 
   double _livePerformanceStrength = 0.5;
@@ -104,6 +98,8 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
   bool get isMonitoring => _isMonitoring;
 
   bool get isRestoring => _isRestoring;
+
+  bool get isOffline => _isOffline;
 
   bool get isCompleted => _result != null;
 
@@ -333,13 +329,15 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
   //      ↓
   // Download
   //      ↓
+  // Download Ping
+  //      ↓
   // Upload
+  //      ↓
+  // Upload Ping
   //      ↓
   // Packet Loss
   //      ↓
-  // Health
-  //      ↓
-  // Diagnostic Complete = 100%
+  // Diagnostic Complete
   //      ↓
   // Automatic Live Monitoring
   // ============================================================
@@ -382,6 +380,8 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
     _health = null;
 
     _latestUpdate = null;
+
+    _isOffline = false;
 
     _livePerformanceStrength = 0.5;
 
@@ -504,6 +504,10 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
   // Result:
   // 0.0 = weak
   // 1.0 = strong
+  //
+  // IMPORTANT:
+  // This method can be called after EVERY new measurement.
+  // Therefore the live indicator can change immediately.
   // ============================================================
 
   double _calculatePerformanceStrength({
@@ -512,6 +516,16 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
     required double pingMs,
     required double packetLossPercent,
   }) {
+    // ----------------------------------------------------------
+    // Failed ping is represented internally by 9999.
+    // Treat it as the worst possible ping.
+    // ----------------------------------------------------------
+
+    final double safePing =
+        pingMs >= 9999.0
+            ? 9999.0
+            : pingMs;
+
     final double downloadScore =
         (downloadMbps / 20.0)
             .clamp(0.0, 1.0)
@@ -523,12 +537,18 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
             .toDouble();
 
     final double pingScore =
-        (1.0 - ((pingMs - 20.0) / 480.0))
-            .clamp(0.0, 1.0)
-            .toDouble();
+        safePing >= 9999.0
+            ? 0.0
+            : (1.0 -
+                    ((safePing - 20.0) /
+                        480.0))
+                .clamp(0.0, 1.0)
+                .toDouble();
 
     final double packetLossScore =
-        (1.0 - (packetLossPercent / 20.0))
+        (1.0 -
+                (packetLossPercent /
+                    20.0))
             .clamp(0.0, 1.0)
             .toDouble();
 
@@ -728,8 +748,10 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
   // - Live measurements
   // - Live performance strength
   //
-  // Network Health is recalculated locally from the latest
-  // complete set of actual measurements.
+  // IMPORTANT:
+  // Every new actual measurement is processed immediately.
+  // The provider recalculates performance as soon as enough
+  // current values are available.
   // ============================================================
 
   void _handleDiagnosticUpdate(
@@ -737,10 +759,26 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
   ) {
     _latestUpdate = update;
 
+    final String stage =
+        update.stage.toLowerCase();
+
     _currentStage = update.stage;
 
     // ----------------------------------------------------------
-    // Progress
+    // OFFLINE STATE
+    // ----------------------------------------------------------
+
+    if (stage == 'offline') {
+      _isOffline = true;
+    }
+
+    if (stage ==
+        'live performance monitoring') {
+      _isOffline = false;
+    }
+
+    // ----------------------------------------------------------
+    // PROGRESS
     //
     // During live monitoring:
     // ALWAYS 100%.
@@ -754,13 +792,17 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
           .toDouble();
     }
 
+    // ----------------------------------------------------------
+    // CURRENT UI VALUES
+    // ----------------------------------------------------------
+
     _currentValue = null;
 
     _secondaryValue = null;
 
-    // ----------------------------------------------------------
-    // Update actual measured values FIRST.
-    // ----------------------------------------------------------
+    // ==========================================================
+    // UPDATE ACTUAL MEASUREMENTS
+    // ==========================================================
 
     if (update.idlePingMs != null) {
       _idlePingMs =
@@ -792,15 +834,209 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
           update.packetLossPercent;
     }
 
+    // ==========================================================
+    // DETERMINE CURRENT MEASUREMENT
+    //
+    // Check PING stages BEFORE generic download/upload stages.
+    // This prevents:
+    //
+    // "Download Ping"
+    // from being treated as:
+    // "Download"
+    // ==========================================================
+
+    if (stage.contains('idle ping')) {
+      _currentValue =
+          update.idlePingMs;
+    } else if (stage.contains(
+        'download ping')) {
+      _currentValue =
+          update.downloadPingMs;
+    } else if (stage.contains(
+        'download')) {
+      _currentValue =
+          update.downloadMbps;
+
+      _secondaryValue =
+          update.downloadPingMs;
+    } else if (stage.contains(
+        'upload ping')) {
+      _currentValue =
+          update.uploadPingMs;
+    } else if (stage.contains(
+        'upload')) {
+      _currentValue =
+          update.uploadMbps;
+
+      _secondaryValue =
+          update.uploadPingMs;
+    } else if (stage.contains(
+        'packet loss')) {
+      _currentValue =
+          update.packetLossPercent;
+    }
+
+    // ==========================================================
+    // REALTIME PERFORMANCE UPDATE
+    //
+    // Instead of waiting for a complete new cycle, use the
+    // latest actual measurements immediately.
+    //
+    // This means:
+    //
+    // New download value
+    //       ↓
+    // New strength
+    //
+    // New upload value
+    //       ↓
+    // New strength
+    //
+    // New ping
+    //       ↓
+    // New strength
+    //
+    // New packet loss
+    //       ↓
+    // New strength
+    // ==========================================================
+
+    _updateLivePerformanceImmediately();
+
+    // ==========================================================
+    // REALTIME HEALTH UPDATE
+    //
+    // Health is recalculated whenever the complete set of
+    // measurements exists.
+    // ==========================================================
+
+    _updateLiveHealth();
+
+    // ==========================================================
+    // KEEP RESULT SYNCHRONIZED
+    // ==========================================================
+
+    _updateResultFromCurrentValues();
+
+    // ==========================================================
+    // SAVE CURRENT LIVE VALUES
+    //
+    // Fire-and-forget.
+    // ==========================================================
+
+    if (_isMonitoring) {
+      _saveCurrentLiveValues();
+    }
+
+    // ==========================================================
+    // DIAGNOSTIC COMPLETION
+    // ==========================================================
+
+    if (stage.contains(
+      'diagnostic complete',
+    )) {
+      _progress = 1.0;
+    }
+
+    // ==========================================================
+    // LIVE MONITORING
+    // ==========================================================
+
+    if (_isMonitoring) {
+      _progress = 1.0;
+    }
+
+    // ==========================================================
+    // IMPORTANT:
+    // notifyListeners() happens for EVERY incoming update.
+    //
+    // Therefore the UI can visibly react to actual network
+    // measurements as soon as they arrive.
+    // ==========================================================
+
+    notifyListeners();
+  }
+
+  // ============================================================
+  // UPDATE LIVE PERFORMANCE IMMEDIATELY
+  //
+  // This is the main realtime fix.
+  //
+  // We do NOT wait for a complete diagnostic cycle.
+  //
+  // Whenever any actual measurement changes, the performance
+  // strength is recalculated using the newest values available.
+  // ============================================================
+
+  void _updateLivePerformanceImmediately() {
     // ----------------------------------------------------------
-    // RE-CALCULATE HEALTH FROM ACTUAL LIVE VALUES.
-    //
-    // This is the important fix.
-    //
-    // We only calculate health when the complete measurement
-    // set is available.
+    // Need at least one actual network measurement before
+    // changing the default strength.
     // ----------------------------------------------------------
 
+    final bool hasMeasurement =
+        _idlePingMs != null ||
+        _downloadMbps != null ||
+        _uploadMbps != null ||
+        _packetLossPercent != null;
+
+    if (!hasMeasurement) {
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // Use the newest available values.
+    //
+    // If a measurement has not arrived yet, use neutral values
+    // rather than inventing a network result.
+    //
+    // Download/upload:
+    // 0 Mbps means no measured throughput yet.
+    //
+    // Ping:
+    // 9999 means failed/no response.
+    //
+    // Packet loss:
+    // 0% is used only until a packet-loss measurement arrives.
+    // ----------------------------------------------------------
+
+    final double download =
+        _downloadMbps ?? 0.0;
+
+    final double upload =
+        _uploadMbps ?? 0.0;
+
+    final double ping =
+        _idlePingMs ?? 9999.0;
+
+    final double packetLoss =
+        _packetLossPercent ?? 0.0;
+
+    final double newStrength =
+        _calculatePerformanceStrength(
+      downloadMbps: download,
+      uploadMbps: upload,
+      pingMs: ping,
+      packetLossPercent: packetLoss,
+    );
+
+    // ----------------------------------------------------------
+    // Clamp the final result.
+    // ----------------------------------------------------------
+
+    _livePerformanceStrength =
+        newStrength
+            .clamp(0.0, 1.0)
+            .toDouble();
+  }
+
+  // ============================================================
+  // UPDATE LIVE HEALTH
+  //
+  // Health requires the complete set of actual measurements.
+  // ============================================================
+
+  void _updateLiveHealth() {
     final double? idlePing =
         _idlePingMs;
 
@@ -819,100 +1055,29 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
     final double? packetLoss =
         _packetLossPercent;
 
-    if (idlePing != null &&
-        downloadMbps != null &&
-        downloadPing != null &&
-        uploadMbps != null &&
-        uploadPing != null &&
-        packetLoss != null) {
-      _health = _calculateNetworkHealth(
-        idlePingMs: idlePing,
-        downloadMbps: downloadMbps,
-        downloadPingMs: downloadPing,
-        uploadMbps: uploadMbps,
-        uploadPingMs: uploadPing,
-        packetLossPercent: packetLoss,
-      );
+    // ----------------------------------------------------------
+    // Do not calculate final health until all measurements
+    // are available.
+    // ----------------------------------------------------------
 
-      // --------------------------------------------------------
-      // Recalculate live performance strength from the same
-      // latest actual measurements.
-      // --------------------------------------------------------
-
-      _livePerformanceStrength =
-          _calculatePerformanceStrength(
-        downloadMbps: downloadMbps,
-        uploadMbps: uploadMbps,
-        pingMs: idlePing,
-        packetLossPercent: packetLoss,
-      );
-    } else {
-      // --------------------------------------------------------
-      // If the complete live cycle is not yet available,
-      // keep the existing performance strength.
-      // --------------------------------------------------------
+    if (idlePing == null ||
+        downloadMbps == null ||
+        downloadPing == null ||
+        uploadMbps == null ||
+        uploadPing == null ||
+        packetLoss == null) {
+      return;
     }
 
-    // ----------------------------------------------------------
-    // Keep _result synchronized with complete live measurements.
-    // ----------------------------------------------------------
-
-    _updateResultFromCurrentValues();
-
-    // ----------------------------------------------------------
-    // Save ONLY during live monitoring.
-    // ----------------------------------------------------------
-
-    if (_isMonitoring) {
-      _saveCurrentLiveValues();
-    }
-
-    // ----------------------------------------------------------
-    // Determine current measurement for UI.
-    // ----------------------------------------------------------
-
-    final String stage =
-        update.stage.toLowerCase();
-
-    if (stage.contains('idle ping')) {
-      _currentValue =
-          update.idlePingMs;
-    } else if (stage.contains('download')) {
-      _currentValue =
-          update.downloadMbps;
-
-      _secondaryValue =
-          update.downloadPingMs;
-    } else if (stage.contains('upload')) {
-      _currentValue =
-          update.uploadMbps;
-
-      _secondaryValue =
-          update.uploadPingMs;
-    } else if (stage.contains('packet loss')) {
-      _currentValue =
-          update.packetLossPercent;
-    }
-
-    // ----------------------------------------------------------
-    // Diagnostic completion always means 100%.
-    // ----------------------------------------------------------
-
-    if (stage.contains(
-      'diagnostic complete',
-    )) {
-      _progress = 1.0;
-    }
-
-    // ----------------------------------------------------------
-    // Live monitoring also always means 100%.
-    // ----------------------------------------------------------
-
-    if (_isMonitoring) {
-      _progress = 1.0;
-    }
-
-    notifyListeners();
+    _health =
+        _calculateNetworkHealth(
+      idlePingMs: idlePing,
+      downloadMbps: downloadMbps,
+      downloadPingMs: downloadPing,
+      uploadMbps: uploadMbps,
+      uploadPingMs: uploadPing,
+      packetLossPercent: packetLoss,
+    );
   }
 
   // ============================================================
@@ -960,7 +1125,8 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
       return;
     }
 
-    _result = NetworkDiagnosticResult(
+    _result =
+        NetworkDiagnosticResult(
       idlePingMs: idlePing,
       downloadMbps: downloadMbps,
       downloadPingMs: downloadPing,
@@ -1186,6 +1352,8 @@ class NetworkDiagnosticProvider extends ChangeNotifier {
     _health = null;
 
     _latestUpdate = null;
+
+    _isOffline = false;
 
     _livePerformanceStrength = 0.5;
 

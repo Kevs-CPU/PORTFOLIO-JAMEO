@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 // ============================================================
 // ACTIVITY 3
 // Live Performance Wave
+//
+// Animated vertical waveform bars.
+// Higher network strength = taller bars.
+// The waveform continuously moves while monitoring.
 // ============================================================
 
 class LivePerformanceWave extends StatefulWidget {
@@ -64,7 +68,8 @@ class _LivePerformanceWaveState
 // Live Performance Wave Painter
 // ============================================================
 
-class LivePerformanceWavePainter extends CustomPainter {
+class LivePerformanceWavePainter
+    extends CustomPainter {
   final double progress;
   final double strength;
 
@@ -78,119 +83,184 @@ class LivePerformanceWavePainter extends CustomPainter {
     Canvas canvas,
     Size size,
   ) {
+    // ----------------------------------------------------------
+    // NORMALIZED NETWORK STRENGTH
+    //
+    // 0.0 = weakest
+    // 1.0 = strongest
+    // ----------------------------------------------------------
+
     final double normalizedStrength =
         strength.clamp(0.0, 1.0).toDouble();
 
-    final double amplitudeFactor =
-        0.20 +
-            (normalizedStrength * 0.80);
-
-    final double amplitude =
-        size.height *
-            0.30 *
-            amplitudeFactor;
-
-    final double opacity =
-        0.45 +
-            (normalizedStrength * 0.55);
+    // ----------------------------------------------------------
+    // WAVE COLOR
+    // ----------------------------------------------------------
 
     final Color waveColor =
         const Color(0xFF45D483).withValues(
-      alpha: opacity,
+      alpha:
+          0.55 +
+              (normalizedStrength * 0.45),
     );
 
     final Color glowColor =
         const Color(0xFF45D483).withValues(
       alpha:
           0.08 +
-              (normalizedStrength * 0.14),
+              (normalizedStrength * 0.12),
     );
 
-    final Paint glowPaint = Paint()
-      ..color = glowColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 5
-      ..strokeCap = StrokeCap.round;
+    // ----------------------------------------------------------
+    // BAR SETTINGS
+    // ----------------------------------------------------------
 
-    final Paint wavePaint = Paint()
-      ..color = waveColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+    const int barCount = 16;
 
-    final Path wave = Path();
+    final double spacing =
+        size.width / barCount;
+
+    final double barWidth =
+        spacing * 0.48;
+
+    // ----------------------------------------------------------
+    // HEIGHT
+    //
+    // Higher strength = taller waveform.
+    // ----------------------------------------------------------
+
+    final double maxBarHeight =
+        size.height *
+            (0.30 +
+                (normalizedStrength * 0.62));
+
+    final double minBarHeight =
+        size.height * 0.10;
 
     final double centerY =
         size.height / 2;
 
-    const int points = 18;
+    // ----------------------------------------------------------
+    // ANIMATION SPEED
+    //
+    // Higher strength = slightly faster movement.
+    // ----------------------------------------------------------
 
     final double animationSpeed =
         0.65 +
             (normalizedStrength * 0.55);
 
-    for (int i = 0; i <= points; i++) {
-      final double x =
-          size.width * i / points;
+    // ----------------------------------------------------------
+    // PAINTS
+    // ----------------------------------------------------------
 
-      final double phase =
-          (i / points) *
-              math.pi *
-              4;
+    final Paint glowPaint = Paint()
+      ..color = glowColor
+      ..style = PaintingStyle.fill
+      ..maskFilter =
+          const MaskFilter.blur(
+        BlurStyle.normal,
+        3,
+      );
+
+    final Paint barPaint = Paint()
+      ..color = waveColor
+      ..style = PaintingStyle.fill;
+
+    // ----------------------------------------------------------
+    // DRAW WAVEFORM BARS
+    // ----------------------------------------------------------
+
+    for (int i = 0; i < barCount; i++) {
+      // --------------------------------------------------------
+      // Position of each bar.
+      // Progress shifts the waveform continuously.
+      // --------------------------------------------------------
+
+      final double normalizedIndex =
+          i / barCount;
 
       final double animatedPhase =
-          phase -
-              progress *
+          (normalizedIndex * math.pi * 4) -
+              (progress *
                   math.pi *
                   2 *
-                  animationSpeed;
+                  animationSpeed);
 
-      final double y =
+      // --------------------------------------------------------
+      // Multiple sine waves create a more natural waveform.
+      // --------------------------------------------------------
+
+      final double waveOne =
+          math.sin(animatedPhase);
+
+      final double waveTwo =
+          math.sin(
+                animatedPhase * 0.55 +
+                    1.2,
+              ) *
+              0.35;
+
+      final double combinedWave =
+          ((waveOne + waveTwo) + 1) / 2;
+
+      // --------------------------------------------------------
+      // Convert wave value into bar height.
+      // --------------------------------------------------------
+
+      final double barHeight =
+          minBarHeight +
+              (combinedWave *
+                  (maxBarHeight -
+                      minBarHeight));
+
+      final double x =
+          (i * spacing) +
+              ((spacing -
+                      barWidth) /
+                  2);
+
+      final double top =
+          centerY -
+              (barHeight / 2);
+
+      final double bottom =
           centerY +
-              math.sin(animatedPhase) *
-                  amplitude;
+              (barHeight / 2);
 
-      if (i == 0) {
-        wave.moveTo(x, y);
-      } else {
-        wave.lineTo(x, y);
-      }
+      // --------------------------------------------------------
+      // Rounded bar shape.
+      // --------------------------------------------------------
+
+      final RRect barRect =
+          RRect.fromLTRBR(
+        x,
+        top,
+        x + barWidth,
+        bottom,
+        Radius.circular(
+          barWidth / 2,
+        ),
+      );
+
+      // --------------------------------------------------------
+      // Glow
+      // --------------------------------------------------------
+
+      canvas.drawRRect(
+        barRect,
+        glowPaint,
+      );
+
+      // --------------------------------------------------------
+      // Main bar
+      // --------------------------------------------------------
+
+      canvas.drawRRect(
+        barRect,
+        barPaint,
+      );
     }
-
-    canvas.drawPath(
-      wave,
-      glowPaint,
-    );
-
-    canvas.drawPath(
-      wave,
-      wavePaint,
-    );
-
-    final double endPhase =
-        math.pi * 4 -
-            progress *
-                math.pi *
-                2 *
-                animationSpeed;
-
-    final double endY =
-        centerY +
-            math.sin(endPhase) *
-                amplitude;
-
-    final Paint dotPaint = Paint()
-      ..color = waveColor;
-
-    canvas.drawCircle(
-      Offset(
-        size.width,
-        endY,
-      ),
-      2.5,
-      dotPaint,
-    );
   }
 
   @override
@@ -198,7 +268,9 @@ class LivePerformanceWavePainter extends CustomPainter {
     covariant LivePerformanceWavePainter
         oldDelegate,
   ) {
-    return oldDelegate.progress != progress ||
-        oldDelegate.strength != strength;
+    return oldDelegate.progress !=
+            progress ||
+        oldDelegate.strength !=
+            strength;
   }
 }

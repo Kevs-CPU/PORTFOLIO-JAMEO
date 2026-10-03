@@ -15,8 +15,12 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
+
     final appState = context.read<AppState>();
-    _nameController = TextEditingController(text: appState.userName);
+
+    _nameController = TextEditingController(
+      text: appState.userName,
+    );
   }
 
   @override
@@ -28,39 +32,61 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
+    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        title: const Text('Settings'),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Profile', style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                'Profile',
+                style: theme.textTheme.titleMedium,
+              ),
+
               const SizedBox(height: 12),
+
               TextField(
                 controller: _nameController,
                 decoration: const InputDecoration(
                   labelText: 'Display name',
                   border: OutlineInputBorder(),
                 ),
-                onChanged: (value) => context.read<AppState>().updateUserName(value),
+                onChanged: (value) {
+                  context.read<AppState>().updateUserName(value);
+                },
               ),
+
               const SizedBox(height: 32),
+
+              Text(
+                'Appearance',
+                style: theme.textTheme.titleMedium,
+              ),
+
+              const SizedBox(height: 8),
+
               Row(
                 children: [
                   Expanded(
-                    child: Text('Appearance', style: Theme.of(context).textTheme.titleMedium),
+                    child: Text(
+                      'Dark theme',
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                  ),
+
+                  Switch(
+                    value: appState.isDarkMode,
+                    onChanged: (value) {
+                      context.read<AppState>().toggleTheme(value);
+                    },
                   ),
                 ],
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Dark theme'),
-                value: appState.isDarkMode,
-                onChanged: (value) => context.read<AppState>().toggleTheme(value),
               ),
             ],
           ),

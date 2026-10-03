@@ -8,6 +8,7 @@ import 'data/network/network_data_source.dart';
 import 'data/network/network_repository_impl.dart';
 import 'domain/usecases/run_network_diagnostic.dart';
 import 'presentation/providers/network_diagnostic_provider.dart';
+import 'presentation/providers/local_chat_provider.dart';
 import 'state/app_state.dart';
 
 Future<void> main() async {
@@ -75,6 +76,11 @@ class PortfolioApp extends StatelessWidget {
 
             return provider;
           },
+        ),
+
+        // Activity 4 - Local Mesh Chat global state
+        ChangeNotifierProvider(
+          create: (_) => LocalChatProvider(),
         ),
       ],
       child: Consumer<AppState>(
